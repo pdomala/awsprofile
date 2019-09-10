@@ -209,9 +209,9 @@ _getAssumedSTSCreds = async (sts, assumeRoleParams, selectedProfile) => {
 
                 console.log(
                     boxen(
-                        `Profile '${answers.profileName}' renewed succesfully
+                        `Profile '${selectedProfile.name}' renewed succesfully
 Execute below alias command to set your AWS profile\n
-AWS_${answers.profileName.toUpperCase()}\n
+AWS_${selectedProfile.name.toUpperCase()}\n
 Execute 'source ~/.awsprofilealiases' if the command is not found
 Add the source command to your bash_profile / .zshrc`,
                         successBox
