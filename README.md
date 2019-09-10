@@ -1,5 +1,7 @@
 # AWSPROFILE
 
+[![Build Status](https://dev.azure.com/prasaddomala/awsprofile-npm/_apis/build/status/pdomala.awsprofile?branchName=master)](https://dev.azure.com/prasaddomala/awsprofile-npm/_build/latest?definitionId=2&branchName=master)
+
 CLI tool to create, manage & renew your AWS profiles
 
 ## Features
