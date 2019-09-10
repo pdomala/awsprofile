@@ -275,6 +275,7 @@ _createProfile = async answers => {
 _writeProfile = async answers => {
     return new Promise(async (resolve, reject) => {
         try {
+            console.log(profiles);
             profiles[answers.profileName] = {
                 aws_access_key_id: answers.accessKey,
                 aws_secret_access_key: answers.secretAccessKey
