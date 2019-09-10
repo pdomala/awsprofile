@@ -18,10 +18,10 @@ const defaultCredsFile = `${homedir}/.aws/credentials`;
 const defaultConfigFile = `${homedir}/.aws/config`;
 const aliasesFile = `${homedir}/.awsprofilealiases`;
 
-credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFile, 'utf-8');
-profiles = ini.parse(credsFile);
-configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFile, 'utf-8');
-configs = ini.parse(configFile);
+var credsFile
+var profiles
+var configFile
+var configs
 
 const configStore = new configstore(pkg.name);
 
@@ -184,6 +184,11 @@ _createProfile = async answers => {
         if (!fs.existsSync(defaultConfigFile)) {
             fs.promises.writeFile(defaultConfigFile, '');
         }
+
+        credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFile, 'utf-8');
+        profiles = ini.parse(credsFile);
+        configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFile, 'utf-8');
+        configs = ini.parse(configFile);
 
         if (answers.profileType === 'normal') {
             if (!profiles[answers.profileName]) {
