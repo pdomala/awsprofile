@@ -14,19 +14,29 @@ const dangerBox = { borderColor: 'red', borderStyle: 'round', padding: 1, margin
 const warningBox = { borderColor: 'yellow', borderStyle: 'round', padding: 1, margin: 1 };
 
 const homedir = require('os').homedir();
-const defaultCredsFile = `${homedir}/.aws/credentials`;
-const defaultConfigFile = `${homedir}/.aws/config`;
-const aliasesFile = `${homedir}/.awsprofilealiases`;
+const defaultCredsFilePath = `${homedir}/.aws/credentials`;
+const defaultConfigFilePath = `${homedir}/.aws/config`;
+const aliasesFilePath = `${homedir}/.awsprofilealiases`;
 
-var credsFile
-var profiles
-var configFile
-var configs
+var credsFile;
+var profiles;
+var configFile;
+var configs;
 
 const configStore = new configstore(pkg.name);
 
 exports.handler = async => {
     try {
+        if (!fs.existsSync(`${homedir}/.aws`)) {
+            fs.promises.mkdir(`${homedir}/.aws`, { recursive: true });
+        }
+
+        if (!fs.existsSync(defaultCredsFilePath)) {
+            fs.promises.writeFile(defaultCredsFilePath, '');
+        }
+        if (!fs.existsSync(defaultConfigFilePath)) {
+            fs.promises.writeFile(defaultConfigFilePath, '');
+        }
         inquirer
             .prompt([
                 {
@@ -129,20 +139,6 @@ exports.handler = async => {
                     }
                 },
                 {
-                    name: 'mfaToken',
-                    message: 'Enter the token code from your authenticator app ?',
-                    when: answers => {
-                        return answers.isMfa;
-                    },
-                    validate: mfaToken => {
-                        if (mfaToken === '') {
-                            return "Looks like you haven't provided your MFA token code. Please try again";
-                        } else if (mfaToken.length < 6) {
-                            return "Your MFA token code doesn't seem to be right. It must be minimum 6 digits long.";
-                        } else return true;
-                    }
-                },
-                {
                     name: 'sessionDuration',
                     type: 'number',
                     message: 'How long would you like your session to be active in seconds (900 - 12900) ?',
@@ -162,6 +158,20 @@ exports.handler = async => {
                     name: 'profileName',
                     message: 'What do you want to call your new AWS profile ?',
                     default: 'my-profile'
+                },
+                {
+                    name: 'mfaToken',
+                    message: 'Enter the token code from your authenticator app ?',
+                    when: answers => {
+                        return answers.isMfa;
+                    },
+                    validate: mfaToken => {
+                        if (mfaToken === '') {
+                            return "Looks like you haven't provided your MFA token code. Please try again";
+                        } else if (mfaToken.length < 6) {
+                            return "Your MFA token code doesn't seem to be right. It must be minimum 6 digits long.";
+                        } else return true;
+                    }
                 }
             ])
             .then(answers => {
@@ -174,20 +184,9 @@ exports.handler = async => {
 
 _createProfile = async answers => {
     try {
-        if (!fs.existsSync(`${homedir}/.aws`)) {
-            fs.promises.mkdir(`${homedir}/.aws`, { recursive: true });
-        }
-
-        if (!fs.existsSync(defaultCredsFile)) {
-            fs.promises.writeFile(defaultCredsFile, '');
-        }
-        if (!fs.existsSync(defaultConfigFile)) {
-            fs.promises.writeFile(defaultConfigFile, '');
-        }
-
-        credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFile, 'utf-8');
+        credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFilePath, 'utf-8');
         profiles = ini.parse(credsFile);
-        configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFile, 'utf-8');
+        configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFilePath, 'utf-8');
         configs = ini.parse(configFile);
 
         if (answers.profileType === 'normal') {
@@ -199,10 +198,13 @@ _createProfile = async answers => {
                 }
                 await _updateAliases(answers.profileName);
                 await _updateConfigStore(answers);
-
                 console.log(
                     boxen(
-                        `Profile '${answers.profileName}' created succesfully\nExecute below alias command to set your AWS profile\n\nAWS_${answers.profileName.toUpperCase()}\n\nExecute 'source ~/.awsprofilealiases' if the command is not found`,
+                        `Profile '${answers.profileName}' created succesfully
+Execute below alias command to set your AWS profile\n
+AWS_${answers.profileName.toUpperCase()}\n
+Execute 'source ~/.awsprofilealiases' if the command is not found
+Add the source command to your bash_profile / .zshrc`,
                         successBox
                     )
                 );
@@ -229,7 +231,11 @@ _createProfile = async answers => {
 
                                 console.log(
                                     boxen(
-                                        `Profile '${answers.profileName}' created succesfully\nExecute below alias command to set your AWS profile\n\nAWS_${answers.profileName.toUpperCase()}\n\nExecute 'source ~/.awsprofilealiases' if the command is not found`,
+                                        `Profile '${answers.profileName}' created succesfully
+Execute below alias command to set your AWS profile\n
+AWS_${answers.profileName.toUpperCase()}\n
+Execute 'source ~/.awsprofilealiases' if the command is not found
+Add the source command to your bash_profile / .zshrc`,
                                         successBox
                                     )
                                 );
@@ -243,7 +249,11 @@ _createProfile = async answers => {
             }
         } else {
             if (!profiles[answers.profileName]) {
-                await _writeAssumedProfile(answers);
+                try {
+                    await _writeAssumedProfile(answers);
+                } catch (error) {
+                    spinner.fail(error.message ? error.message : error);
+                }
             } else {
                 inquirer
                     .prompt([
@@ -280,13 +290,13 @@ _writeProfile = async answers => {
                 aws_access_key_id: answers.accessKey,
                 aws_secret_access_key: answers.secretAccessKey
             };
-            fs.writeFileSync(defaultCredsFile, ini.stringify(profiles));
+            fs.writeFileSync(defaultCredsFilePath, ini.stringify(profiles));
 
             configs[answers.profileName === 'default' ? 'default' : `profile ${answers.profileName}`] = {
                 region: answers.region,
                 output: answers.output
             };
-            fs.writeFileSync(defaultConfigFile, ini.stringify(configs));
+            fs.writeFileSync(defaultConfigFilePath, ini.stringify(configs));
 
             return resolve('success');
         } catch (error) {
@@ -301,8 +311,11 @@ _writeMfaProfile = async answers => {
             accessKeyId: answers.accessKey,
             secretAccessKey: answers.secretAccessKey
         };
+
         const sts = new AWS.STS(keys);
+
         spinner.start('Requesting temporary STS credentials');
+
         await sts
             .getSessionToken({
                 SerialNumber: answers.mfaSerial,
@@ -317,13 +330,13 @@ _writeMfaProfile = async answers => {
                     aws_session_token: stsRes.Credentials.SessionToken,
                     expiration: moment(stsRes.Credentials.Expiration).format()
                 };
-                fs.writeFileSync(defaultCredsFile, ini.stringify(profiles));
+                fs.writeFileSync(defaultCredsFilePath, ini.stringify(profiles));
 
                 configs[answers.profileName === 'default' ? 'default' : `profile ${answers.profileName}`] = {
                     region: answers.region,
                     output: answers.output
                 };
-                fs.writeFileSync(defaultConfigFile, ini.stringify(configs));
+                fs.writeFileSync(defaultConfigFilePath, ini.stringify(configs));
 
                 spinner.succeed();
                 return resolve('success');
@@ -404,13 +417,13 @@ _getAssumedSTSCreds = async (sts, assumeRoleParams, answers) => {
                     aws_session_token: stsRes.Credentials.SessionToken,
                     expiration: moment(stsRes.Credentials.Expiration).format()
                 };
-                fs.writeFileSync(defaultCredsFile, ini.stringify(profiles));
+                fs.writeFileSync(defaultCredsFilePath, ini.stringify(profiles));
 
                 configs[answers.profileName === 'default' ? 'default' : `profile ${answers.profileName}`] = {
                     region: answers.region,
                     output: answers.output
                 };
-                fs.writeFileSync(defaultConfigFile, ini.stringify(configs));
+                fs.writeFileSync(defaultConfigFilePath, ini.stringify(configs));
 
                 spinner.succeed();
 
@@ -419,7 +432,11 @@ _getAssumedSTSCreds = async (sts, assumeRoleParams, answers) => {
 
                 console.log(
                     boxen(
-                        `Profile '${answers.profileName}' created succesfully\nExecute below alias command to set your AWS profile\n\nAWS_${answers.profileName.toUpperCase()}\n\nExecute 'source ~/.awsprofilealiases' if the command is not found`,
+                        `Profile '${answers.profileName}' created succesfully
+Execute below alias command to set your AWS profile\n
+AWS_${answers.profileName.toUpperCase()}\n
+Execute 'source ~/.awsprofilealiases' if the command is not found
+Add the source command to your bash_profile / .zshrc`,
                         successBox
                     )
                 );
@@ -435,11 +452,11 @@ _getAssumedSTSCreds = async (sts, assumeRoleParams, answers) => {
 _updateAliases = async profileName => {
     return new Promise(async (resolve, reject) => {
         try {
-            const aliases = ini.parse(fs.readFileSync(aliasesFile, 'utf-8'));
+            const aliases = ini.parse(fs.readFileSync(aliasesFilePath, 'utf-8'));
             if (!aliases[`alias AWS_${profileName.toUpperCase()}`]) {
                 aliases[`alias AWS_${profileName.toUpperCase()}`] = `export AWS_PROFILE=${profileName}`;
             }
-            fs.writeFileSync(aliasesFile, ini.stringify(aliases));
+            fs.writeFileSync(aliasesFilePath, ini.stringify(aliases));
 
             return resolve('success');
         } catch (error) {

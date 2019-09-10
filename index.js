@@ -34,6 +34,9 @@ const args = yargs
     .command('create', 'Creates AWS profile interactively', {})
     .example('$0 create')
 
+    .command('list', 'List all existing AWS profiles', {})
+    .example('$0 list')
+    
     .command('listaliases', 'List all existing AWS profile aliases', {})
     .example('$0 listaliases')
 

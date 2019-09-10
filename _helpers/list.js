@@ -17,15 +17,32 @@ const defaultCredsFilePath = `${homedir}/.aws/credentials`;
 const defaultConfigFilePath = `${homedir}/.aws/config`;
 const aliasesFilePath = `${homedir}/.awsprofilealiases`;
 
-credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFilePath, 'utf-8');
-profiles = ini.parse(credsFile);
-configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFilePath, 'utf-8');
-configs = ini.parse(configFile);
+var credsFile;
+var profiles;
+var configFile;
+var configs;
+
 const yes = chalk.green('\u{2714}');
 const no = chalk.red('\u{2a09}');
 
 exports.handler = async => {
     try {
+        if (!fs.existsSync(`${homedir}/.aws`)) {
+            fs.promises.mkdir(`${homedir}/.aws`, { recursive: true });
+        }
+
+        if (!fs.existsSync(defaultCredsFilePath)) {
+            fs.promises.writeFile(defaultCredsFilePath, '');
+        }
+        if (!fs.existsSync(defaultConfigFilePath)) {
+            fs.promises.writeFile(defaultConfigFilePath, '');
+        }
+
+        credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFilePath, 'utf-8');
+        profiles = ini.parse(credsFile);
+        configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFilePath, 'utf-8');
+        configs = ini.parse(configFile);
+
         const profilesTable = require('./table').paramsTable(['Name', 'Type', 'MFA', 'MFA Serial', 'Role', 'Region', 'Output', 'Session', 'Expiry']);
         const profileNames = Object.keys(profiles);
 
@@ -42,10 +59,9 @@ exports.handler = async => {
                 profileAWSConfig.region,
                 profileAWSConfig.output,
                 profileConfig.sessionDuration,
-                profileAWS.expiration ? moment(profileAWS.expiration).diff(moment(), 'seconds') < 0 ? chalk.red('Expired') : chalk.green(moment(profileAWS.expiration).from(moment())) : 'NA'
+                profileAWS.expiration ? (moment(profileAWS.expiration).diff(moment(), 'seconds') < 0 ? chalk.red('Expired') : chalk.green(moment(profileAWS.expiration).from(moment()))) : 'NA'
             ]);
         }
-
 
         if (profilesTable.length > 0) {
             console.log('');

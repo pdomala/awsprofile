@@ -14,19 +14,35 @@ const dangerBox = { borderColor: 'red', borderStyle: 'round', padding: 1, margin
 const warningBox = { borderColor: 'yellow', borderStyle: 'round', padding: 1, margin: 1 };
 
 const homedir = require('os').homedir();
-const defaultCredsFile = `${homedir}/.aws/credentials`;
-const defaultConfigFile = `${homedir}/.aws/config`;
+const defaultCredsFilePath = `${homedir}/.aws/credentials`;
+const defaultConfigFilePath = `${homedir}/.aws/config`;
 const aliasesFile = `${homedir}/.awsprofilealiases`;
 
-credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFile, 'utf-8');
-profiles = ini.parse(credsFile);
-configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFile, 'utf-8');
-configs = ini.parse(configFile);
+var credsFile;
+var profiles;
+var configFile;
+var configs;
 
 const configStore = new configstore(pkg.name);
 
 exports.handler = async => {
     try {
+        if (!fs.existsSync(`${homedir}/.aws`)) {
+            fs.promises.mkdir(`${homedir}/.aws`, { recursive: true });
+        }
+
+        if (!fs.existsSync(defaultCredsFilePath)) {
+            fs.promises.writeFile(defaultCredsFilePath, '');
+        }
+        if (!fs.existsSync(defaultConfigFilePath)) {
+            fs.promises.writeFile(defaultConfigFilePath, '');
+        }
+
+        credsFile = process.env.AWS_SHARED_CREDENTIALS_FILE ? fs.readFileSync(process.env.AWS_SHARED_CREDENTIALS_FILE, 'utf-8') : fs.readFileSync(defaultCredsFilePath, 'utf-8');
+        profiles = ini.parse(credsFile);
+        configFile = process.env.AWS_CONFIG_FILE ? fs.readFileSync(process.env.AWS_CONFIG_FILE, 'utf-8') : fs.readFileSync(defaultConfigFilePath, 'utf-8');
+        configs = ini.parse(configFile);
+
         inquirer
             .prompt([
                 {
@@ -114,18 +130,20 @@ _writeMfaProfile = async (selectedProfile, answers) => {
                     aws_session_token: stsRes.Credentials.SessionToken,
                     expiration: moment(stsRes.Credentials.Expiration).format()
                 };
-                fs.writeFileSync(defaultCredsFile, ini.stringify(profiles));
-
+                fs.writeFileSync(defaultCredsFilePath, ini.stringify(profiles));
 
                 spinner.succeed();
-
                 console.log(
                     boxen(
-                        `Profile '${answers.profileName}' created succesfully\nExecute below alias command to set your AWS profile\n\nAWS_${answers.profileName.toUpperCase()}\n\nExecute 'source ~/.awsprofilealiases' if the command is not found`,
+                        `Profile '${answers.profileName}' renewed succesfully
+Execute below alias command to set your AWS profile\n
+AWS_${answers.profileName.toUpperCase()}\n
+Execute 'source ~/.awsprofilealiases' if the command is not found
+Add the source command to your bash_profile / .zshrc`,
                         successBox
                     )
                 );
-                
+
                 return resolve('success');
             })
             .catch(error => {
@@ -185,13 +203,17 @@ _getAssumedSTSCreds = async (sts, assumeRoleParams, selectedProfile) => {
                     aws_session_token: stsRes.Credentials.SessionToken,
                     expiration: moment(stsRes.Credentials.Expiration).format()
                 };
-                fs.writeFileSync(defaultCredsFile, ini.stringify(profiles));
+                fs.writeFileSync(defaultCredsFilePath, ini.stringify(profiles));
 
                 spinner.succeed();
 
                 console.log(
                     boxen(
-                        `Profile '${selectedProfile.name}' created succesfully\nExecute below alias command to set your AWS profile\n\nAWS_${selectedProfile.name.toUpperCase()}\n\nExecute 'source ~/.awsprofilealiases' if the command is not found`,
+                        `Profile '${answers.profileName}' renewed succesfully
+Execute below alias command to set your AWS profile\n
+AWS_${answers.profileName.toUpperCase()}\n
+Execute 'source ~/.awsprofilealiases' if the command is not found
+Add the source command to your bash_profile / .zshrc`,
                         successBox
                     )
                 );
